@@ -1,0 +1,11 @@
+/* 全局样式：统一主题色（番茄橙） */
+:root {
+  --el-color-primary: #ff6b35;
+  --el-border-radius-base: 10px;
+}
+
+body {
+  margin: 0;
+  background: #f5f7fa;
+  font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+}
