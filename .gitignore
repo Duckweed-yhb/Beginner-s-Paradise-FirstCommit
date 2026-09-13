@@ -1,0 +1,53 @@
+# ============================================
+# FocusStudy 根目录 .gitignore
+# 用途：保证提交到 GitHub 的内容干净，个人/本地文件不上传
+# ============================================
+
+# ----- 操作系统与编辑器 -----
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ----- 依赖与虚拟环境 -----
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# ----- 构建产物 -----
+dist/
+build/
+
+# ----- 测试临时文件 -----
+.pytest_cache/
+.pytest_tmp/
+.piptmp/
+tests/.tmp/
+
+# ----- 运行数据（本机个人数据，不上传） -----
+focusstudy-server/data/
+
+# ----- 日志与临时文件 -----
+*.log
+*.tmp
+npm-debug.log*
+
+# ============================================
+# 个人文件区
+# private/ 存放个人查看的内容（个人草稿、本地脚本等），一律不上传。
+# 已经放进 private/ 的：SUBMISSION.md（Devpost 草稿）、sync-to-repo.ps1（本地同步脚本）
+#
+# 注意：
+#   1. 已经提交到 GitHub 的文件，只加 .gitignore 不会从仓库移除，
+#      还需要执行：git rm --cached <路径>   （本地文件保留，仅停止跟踪）
+#   2. 学习日志.md / 项目日记.md 是比赛"学习成长 30%"的证明材料，
+#      README.md 里也链接了它们；如需隐藏，去掉下面两行前的 # 并 git rm --cached。
+# ============================================
+private/
+# 学习日志.md
+# 项目日记.md
