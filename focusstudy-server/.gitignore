@@ -2,3 +2,10 @@
 __pycache__/
 *.pyc
 data/
+
+# 测试产物（pytest 临时目录 / 缓存）
+.pytest_cache/
+.pytest_tmp/
+.piptmp/
+pytest-cache-files-*/
+tests/.tmp/
