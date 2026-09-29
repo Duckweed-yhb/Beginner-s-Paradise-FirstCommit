@@ -119,7 +119,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { ElNotification } from "element-plus";
-import { createRecord, syncSilently } from "../api";
+import { createRecord, fetchRecords, syncSilently } from "../api";
 import { loadRecords, saveRecords, loadTasks, loadSettings, saveSettings } from "../storage";
 import { todayString, formatClock } from "../time";
 
@@ -140,6 +140,7 @@ const status = ref("idle"); // idle / running / paused
 const totalSeconds = ref(focusMinutes.value * 60);
 const remaining = ref(totalSeconds.value);
 let timerId = null;
+let endAt = 0; // 目标结束时刻（毫秒时间戳）：剩余秒数一律由墙钟反推，防 setInterval 漂移
 
 const isRunning = computed(() => status.value === "running");
 
@@ -202,28 +203,43 @@ function startTimer() {
     totalSeconds.value = durationFor(mode.value);
     remaining.value = totalSeconds.value;
   }
+  // 时间戳基准：记下"应该结束的时刻"，每次 tick 用墙钟反推剩余秒数。
+  // 浏览器后台标签节流会让 setInterval 变慢（漂移），反推计算保证倒计时始终和真实时间一致。
+  endAt = Date.now() + remaining.value * 1000;
   status.value = "running";
 
   clearInterval(timerId);
-  timerId = setInterval(() => {
-    remaining.value -= 1;
-    if (remaining.value <= 0) {
-      clearInterval(timerId);
-      timerId = null;
-      onTimerComplete();
-    }
-  }, 1000);
+  timerId = setInterval(tick, 250);
+}
+
+/** 每次 tick：用墙钟反推剩余秒数，归零即结束 */
+function tick() {
+  const rest = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+  remaining.value = rest;
+  if (rest <= 0) {
+    finishTimer();
+  }
+}
+
+function finishTimer() {
+  clearInterval(timerId);
+  timerId = null;
+  status.value = "idle";
+  onTimerComplete();
 }
 
 function pauseTimer() {
   clearInterval(timerId);
   timerId = null;
+  // 暂停瞬间把剩余秒数固定下来，继续时以它为新的结束时刻基准
+  remaining.value = Math.max(0, Math.round((endAt - Date.now()) / 1000));
   status.value = "paused";
 }
 
 function resetTimer() {
   clearInterval(timerId);
   timerId = null;
+  endAt = 0;
   status.value = "idle";
   totalSeconds.value = durationFor(mode.value);
   remaining.value = totalSeconds.value;
@@ -328,6 +344,31 @@ onMounted(() => {
   // 回到这个页面时刷新可选任务（在任务页改完再切回来）
   window.addEventListener("focus", loadUnfinishedTasks);
 
+  // 本地有记录而后端是空的：把本地记录静默补推上去，让服务器成为真实镜像。
+  // 幂等做法：只在"后端确实是空的"时才推，避免重复。
+  (async () => {
+    try {
+      const remote = await fetchRecords();
+      if (Array.isArray(remote) && remote.length === 0 && records.value.length > 0) {
+        for (const r of records.value) {
+          await syncSilently(
+            createRecord({
+              taskName: r.taskName,
+              subject: r.subject,
+              minutes: r.minutes,
+              date: r.date,
+            })
+          );
+        }
+      }
+    } catch {
+      /* 后端未启动：本地数据照常可用，什么都不做 */
+    }
+  })();
+
+  // 后台标签切回来时，立即用墙钟校准一次，不等下一次 tick
+  document.addEventListener("visibilitychange", resyncOnVisible);
+
   // 每 30 秒检查一次是否跨天：跨了就刷新 currentDate，
   // 让"今日汇总"在午夜之后自动归零，而不是继续显示昨天
   dayTicker = setInterval(() => {
@@ -338,9 +379,18 @@ onMounted(() => {
   }, 30000);
 });
 
+/** 页面从后台切回时校准剩余时间（后台节流可能让 tick 滞后） */
+function resyncOnVisible() {
+  if (status.value !== "running") return;
+  const rest = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+  remaining.value = rest;
+  if (rest <= 0) finishTimer();
+}
+
 onUnmounted(() => {
   window.removeEventListener("focus", loadUnfinishedTasks);
   window.removeEventListener("beforeunload", beforeUnloadHandler);
+  document.removeEventListener("visibilitychange", resyncOnVisible);
   clearInterval(timerId);
   clearInterval(dayTicker);
 });

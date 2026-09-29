@@ -77,6 +77,7 @@ This is the feature I'm most deliberate about:
 - When the FastAPI backend *is* reachable, changes sync to it in the background
 - Network failures degrade silently instead of blocking the UI
 - Creating, **editing, completing, and deleting** tasks all sync to the server — not just creating
+- **One-click JSON export/import** — back up tasks, records, and settings to a file, or restore them on another device (your data stays yours)
 
 ---
 
@@ -400,8 +401,8 @@ JavaScript's `toISOString().slice(0, 10)` returns the **UTC** date. In UTC+8, a 
 **6. Why does `PUT` accept partial updates?**
 Because ticking a checkbox should not require the client to echo back every other field. If the UI sends only `{"done": true}`, a naive full-replace would wipe the task's name, subject, and deadline. `exclude_none=True` on the update model makes "only what changed" the contract.
 
-**7. Why is the timer still `setInterval`-based?**
-It's the simplest thing that works, and correctness here is about the *display*, not precision timekeeping. A production version would store the target end timestamp and compute the remainder on each tick, so tab throttling couldn't cause drift — noted in the limitations as a known tradeoff rather than pretended away.
+**7. Why is the timer timestamp-based instead of a simple `setInterval` countdown?**
+Browsers throttle `setInterval` in background tabs, so a naive `remaining -= 1` countdown drifts behind wall-clock time — which is the one thing a focus timer can't afford. The timer stores the target end timestamp and recomputes the remaining seconds from `Date.now()` on every tick, and re-calibrates immediately when the tab becomes visible again, so the countdown stays honest even when the tab is throttled or the user switches away.
 
 ---
 
@@ -410,10 +411,9 @@ It's the simplest thing that works, and correctness here is about the *display*,
 I'd rather list these honestly than have a reviewer find them.
 
 - **Single user, no auth.** Anyone who can reach the server sees the same data. Out of scope for a personal tool, but it means this isn't deployable as a public multi-user service.
-- **`setInterval` drift.** Background-tab throttling can make the countdown lag behind wall-clock time.
 - **No concurrent-write protection.** Two simultaneous writers to the same JSON file could lose a write. Acceptable for one user; would need locking or a real database for many.
 - **localStorage/server reconciliation is naive.** If the same data diverges, local wins. There's no merge strategy, no timestamps, no conflict resolution.
-- **Frontend tests are missing.** Backend logic has real coverage; the Vue components are verified manually via a checklist (see Lesson 16). Adding Vitest is on the roadmap.
+- **Frontend tests cover pure logic only.** `time.js` and `storage.js` have Vitest unit tests; component-level tests with Vue Test Utils are still on the roadmap (components are verified manually via the Lesson 16 checklist).
 - **`/api/stats` trusts the stored `minutes` field.** It tolerates *malformed* data but doesn't re-derive minutes from session start/end times, since those aren't stored.
 
 ---
@@ -421,9 +421,9 @@ I'd rather list these honestly than have a reviewer find them.
 ## 🗺 Roadmap
 
 - [ ] Store session start/end timestamps so durations are verifiable, not just asserted
-- [ ] Timestamp-based timer to eliminate background-throttling drift
-- [ ] Vitest + Vue Test Utils for component-level tests
-- [ ] Export/import data as JSON so students can back up or move devices
+- [x] Timestamp-based timer to eliminate background-throttling drift
+- [x] Vitest unit tests for `time.js` / `storage.js` (component-level Vue Test Utils tests: still open)
+- [x] Export/import data as JSON so students can back up or move devices
 - [ ] Weekly and monthly trend views beyond the current 7-day window
 - [ ] PWA support for genuine offline installation
 

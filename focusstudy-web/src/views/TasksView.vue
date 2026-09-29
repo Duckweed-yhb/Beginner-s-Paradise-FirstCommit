@@ -161,6 +161,23 @@
         <el-button type="primary" @click="saveEdit">保存</el-button>
       </template>
     </el-dialog>
+    <!-- ④ 数据备份：本地 JSON 导出 / 导入恢复 -->
+    <el-card class="backup-card">
+      <h2>💾 数据备份</h2>
+      <p class="backup-hint">
+        把任务和专注记录导出为 JSON 文件保存到本地，换电脑或清浏览器前先导出一份；
+        导入后覆盖本机数据（数据始终只存在你自己手里）。
+      </p>
+      <el-button type="primary" plain @click="exportData">导出备份</el-button>
+      <el-button plain @click="triggerImport">导入备份</el-button>
+      <input
+        ref="fileInput"
+        type="file"
+        accept=".json,application/json"
+        style="display: none"
+        @change="onImportFile"
+      />
+    </el-card>
   </div>
 </template>
 
@@ -174,7 +191,7 @@ import {
   deleteTask,
   syncSilently,
 } from "../api";
-import { loadTasks, saveTasks } from "../storage";
+import { loadTasks, saveTasks, loadRecords, saveRecords, loadSettings } from "../storage";
 import { todayString } from "../time";
 
 // ===== 数据 =====
@@ -351,6 +368,58 @@ function saveEdit() {
   ElMessage.success("已保存");
 }
 
+// ===== 数据备份（导出 / 导入 JSON） =====
+const fileInput = ref(null);
+
+function exportData() {
+  const payload = {
+    app: "FocusStudy",
+    exportedAt: new Date().toISOString(),
+    tasks: tasks.value,
+    records: loadRecords(),
+    settings: loadSettings(),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `focusstudy-backup-${todayString()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  ElMessage.success("已导出备份文件");
+}
+
+function triggerImport() {
+  fileInput.value && fileInput.value.click();
+}
+
+function onImportFile(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!data || !Array.isArray(data.tasks) || !Array.isArray(data.records)) {
+        throw new Error("bad format");
+      }
+      tasks.value = data.tasks;
+      saveTasks(tasks.value);
+      saveRecords(data.records);
+      ElMessage.success(
+        `已导入 ${data.tasks.length} 个任务、${data.records.length} 条专注记录`
+      );
+    } catch {
+      ElMessage.error("备份文件格式不正确，导入失败");
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+}
+
 // ===== 计算与工具 =====
 const unfinishedCount = computed(() => tasks.value.filter((t) => !t.done).length);
 
@@ -393,4 +462,6 @@ h2 { margin-top: 0; font-size: 18px; }
 .sync-online { color: #67c23a; }
 .sync-offline { color: #e6a23c; }
 .overdue { color: #f56c6c; }
+.backup-card { margin-top: 20px; }
+.backup-hint { color: #888; font-size: 13px; margin: 4px 0 12px; }
 </style>

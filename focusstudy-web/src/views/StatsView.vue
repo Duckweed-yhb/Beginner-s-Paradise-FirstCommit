@@ -86,6 +86,8 @@ const dataSource = ref("");
 const records = ref(loadRecords());
 // 任务列表只用来算完成率
 const tasks = ref(loadTasks());
+// 后端汇总里的按科目数据：本地无明细、回退到服务器时，饼图用它保持科目粒度
+const remoteSubjectMinutes = ref(null);
 
 onMounted(async () => {
   try {
@@ -116,6 +118,8 @@ function useRemoteStats(stats) {
     subject: "全部",
     taskName: "（来自服务器汇总）",
   }));
+  // 科目粒度从聚合结果里单独保留，饼图不至于只剩一个"全部"切片
+  remoteSubjectMinutes.value = stats.by_subject || null;
   isRemote.value = true;
   dataSource.value = "本地无明细，已回退到服务器汇总数据";
 }
@@ -168,9 +172,12 @@ const barOption = computed(() => {
 // ===== 科目占比饼图 =====
 const pieOption = computed(() => {
   const map = {};
-  for (const r of records.value) {
-    const subject = r.subject || "未分类";
-    map[subject] = (map[subject] || 0) + (Number(r.minutes) || 0);
+  // 远端兜底时用服务器的按科目聚合，本地明细时按记录实时计算
+  const source = remoteSubjectMinutes.value
+    ? Object.entries(remoteSubjectMinutes.value)
+    : records.value.map((r) => [r.subject || "未分类", Number(r.minutes) || 0]);
+  for (const [name, value] of source) {
+    map[name] = (map[name] || 0) + value;
   }
   const data = Object.entries(map).map(([name, value]) => ({ name, value }));
 
